@@ -1,3 +1,4 @@
+import Accelerate
 @preconcurrency import CoreML
 import Foundation
 import OSLog
@@ -168,10 +169,22 @@ public struct TtsModels: Sendable {
                     shape: [1, NSNumber(value: noiseLength), 9],
                     dataType: .float16
                 )
-                let noisePointer = sourceNoise.dataPointer.bindMemory(to: UInt16.self, capacity: noiseLength * 9)
-                for i in 0..<(noiseLength * 9) {
-                    let randomValue = Float.random(in: -1...1)
-                    noisePointer[i] = Float16(randomValue).bitPattern
+                let noiseCount = noiseLength * 9
+                var randomFloats = (0..<noiseCount).map { _ in Float.random(in: -1...1) }
+                randomFloats.withUnsafeMutableBufferPointer { floatBuf in
+                    var src = vImage_Buffer(
+                        data: floatBuf.baseAddress!,
+                        height: 1,
+                        width: vImagePixelCount(noiseCount),
+                        rowBytes: noiseCount * MemoryLayout<Float>.size
+                    )
+                    var dst = vImage_Buffer(
+                        data: sourceNoise.dataPointer,
+                        height: 1,
+                        width: vImagePixelCount(noiseCount),
+                        rowBytes: noiseCount * MemoryLayout<UInt16>.size
+                    )
+                    vImageConvert_PlanarFtoPlanar16F(&src, &dst, 0)
                 }
                 inputDict["source_noise"] = sourceNoise
             }
