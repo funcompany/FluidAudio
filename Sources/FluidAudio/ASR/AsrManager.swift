@@ -233,17 +233,8 @@ public actor AsrManager {
             throw ASRError.notInitialized
         }
 
-        // Get the appropriate decoder state
-        var state: TdtDecoderState
-        switch source {
-        case .microphone:
-            state = microphoneDecoderState
-        case .system:
-            state = systemDecoderState
-        }
-
-        // Reset the existing decoder state to clear all cached values including predictorOutput
-        state.reset()
+        // Fresh allocation avoids mutating arrays that CoreML GCD queues may still reference.
+        var state = TdtDecoderState.make()
 
         let initDecoderInput = try prepareDecoderInput(
             hiddenState: state.hiddenState,
@@ -257,7 +248,6 @@ public actor AsrManager {
 
         state.update(from: initDecoderOutput)
 
-        // Store back
         switch source {
         case .microphone:
             microphoneDecoderState = state
